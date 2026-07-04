@@ -1,7 +1,7 @@
 import { Card, FullScreen } from '../components/ui'
 
 const EFFECTIVE_DATE = 'July 4, 2026'
-const CONTACT_EMAIL = '[your email here]'
+const CONTACT_EMAIL = 'higcclg@gmail.com'
 
 function Section({ heading, children }: { heading: string; children: React.ReactNode }) {
   return (
