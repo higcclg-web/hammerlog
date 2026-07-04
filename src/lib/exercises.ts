@@ -1,0 +1,72 @@
+import type { Exercise } from './types'
+
+export const EXERCISE_LIBRARY: Exercise[] = [
+  // Chest
+  { id: 'bench-press', name: 'Bench Press', muscle: 'chest' },
+  { id: 'incline-bench-press', name: 'Incline Bench Press', muscle: 'chest' },
+  { id: 'db-bench-press', name: 'Dumbbell Bench Press', muscle: 'chest' },
+  { id: 'db-incline-press', name: 'Dumbbell Incline Press', muscle: 'chest' },
+  { id: 'chest-fly', name: 'Chest Fly', muscle: 'chest' },
+  { id: 'cable-crossover', name: 'Cable Crossover', muscle: 'chest' },
+  { id: 'push-up', name: 'Push-Up', muscle: 'chest' },
+  { id: 'dip', name: 'Dip', muscle: 'chest' },
+  // Back
+  { id: 'deadlift', name: 'Deadlift', muscle: 'back' },
+  { id: 'romanian-deadlift', name: 'Romanian Deadlift', muscle: 'back' },
+  { id: 'pull-up', name: 'Pull-Up', muscle: 'back' },
+  { id: 'chin-up', name: 'Chin-Up', muscle: 'back' },
+  { id: 'lat-pulldown', name: 'Lat Pulldown', muscle: 'back' },
+  { id: 'barbell-row', name: 'Barbell Row', muscle: 'back' },
+  { id: 'db-row', name: 'Dumbbell Row', muscle: 'back' },
+  { id: 'seated-cable-row', name: 'Seated Cable Row', muscle: 'back' },
+  { id: 't-bar-row', name: 'T-Bar Row', muscle: 'back' },
+  { id: 'face-pull', name: 'Face Pull', muscle: 'back' },
+  // Legs
+  { id: 'squat', name: 'Squat', muscle: 'legs' },
+  { id: 'front-squat', name: 'Front Squat', muscle: 'legs' },
+  { id: 'leg-press', name: 'Leg Press', muscle: 'legs' },
+  { id: 'hack-squat', name: 'Hack Squat', muscle: 'legs' },
+  { id: 'bulgarian-split-squat', name: 'Bulgarian Split Squat', muscle: 'legs' },
+  { id: 'walking-lunge', name: 'Walking Lunge', muscle: 'legs' },
+  { id: 'leg-extension', name: 'Leg Extension', muscle: 'legs' },
+  { id: 'leg-curl', name: 'Leg Curl', muscle: 'legs' },
+  { id: 'hip-thrust', name: 'Hip Thrust', muscle: 'legs' },
+  { id: 'calf-raise', name: 'Calf Raise', muscle: 'legs' },
+  { id: 'goblet-squat', name: 'Goblet Squat', muscle: 'legs' },
+  // Shoulders
+  { id: 'overhead-press', name: 'Overhead Press', muscle: 'shoulders' },
+  { id: 'db-shoulder-press', name: 'Dumbbell Shoulder Press', muscle: 'shoulders' },
+  { id: 'lateral-raise', name: 'Lateral Raise', muscle: 'shoulders' },
+  { id: 'front-raise', name: 'Front Raise', muscle: 'shoulders' },
+  { id: 'rear-delt-fly', name: 'Rear Delt Fly', muscle: 'shoulders' },
+  { id: 'arnold-press', name: 'Arnold Press', muscle: 'shoulders' },
+  { id: 'upright-row', name: 'Upright Row', muscle: 'shoulders' },
+  { id: 'shrug', name: 'Shrug', muscle: 'shoulders' },
+  // Arms
+  { id: 'barbell-curl', name: 'Barbell Curl', muscle: 'arms' },
+  { id: 'db-curl', name: 'Dumbbell Curl', muscle: 'arms' },
+  { id: 'hammer-curl', name: 'Hammer Curl', muscle: 'arms' },
+  { id: 'preacher-curl', name: 'Preacher Curl', muscle: 'arms' },
+  { id: 'cable-curl', name: 'Cable Curl', muscle: 'arms' },
+  { id: 'tricep-pushdown', name: 'Tricep Pushdown', muscle: 'arms' },
+  { id: 'skull-crusher', name: 'Skull Crusher', muscle: 'arms' },
+  { id: 'overhead-tricep-extension', name: 'Overhead Tricep Extension', muscle: 'arms' },
+  { id: 'close-grip-bench', name: 'Close-Grip Bench Press', muscle: 'arms' },
+  // Core
+  { id: 'plank', name: 'Plank', muscle: 'core' },
+  { id: 'crunch', name: 'Crunch', muscle: 'core' },
+  { id: 'hanging-leg-raise', name: 'Hanging Leg Raise', muscle: 'core' },
+  { id: 'cable-crunch', name: 'Cable Crunch', muscle: 'core' },
+  { id: 'russian-twist', name: 'Russian Twist', muscle: 'core' },
+  { id: 'ab-wheel', name: 'Ab Wheel Rollout', muscle: 'core' },
+]
+
+export const MUSCLE_GROUPS = [
+  'chest',
+  'back',
+  'legs',
+  'shoulders',
+  'arms',
+  'core',
+  'other',
+] as const

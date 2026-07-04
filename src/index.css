@@ -1,0 +1,98 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bg: #0a0a0b;
+  --color-surface: #17171a;
+  --color-surface-2: #202024;
+  --color-line: #2a2a30;
+  --color-ember: #ff6a1f;
+  --color-ember-hi: #ffa02e;
+  --color-ink: #f4f4f3;
+  --color-ink-dim: #9c9ca4;
+  --color-ink-faint: #626269;
+  --color-good: #4ade80;
+  --color-bad: #f87171;
+  --color-protein: #38bdf8;
+  --color-carbs: #a78bfa;
+  --color-fat: #facc15;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+}
+
+html {
+  background: var(--color-bg);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  overscroll-behavior-y: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+input,
+select,
+textarea {
+  font-size: 16px; /* prevent iOS zoom on focus */
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.animate-sheet {
+  animation: sheet-up 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade {
+  animation: fade-in 0.18s ease-out;
+}
+
+@keyframes pulse-ember {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 106, 31, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(255, 106, 31, 0);
+  }
+}
+.pulse-ember {
+  animation: pulse-ember 2s infinite;
+}
