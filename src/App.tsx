@@ -22,17 +22,19 @@ export default function App() {
     <div className="min-h-dvh bg-bg">
       <main className="max-w-lg mx-auto px-4 pb-40 pt-[calc(env(safe-area-inset-top)+20px)]">
         <ErrorBoundary key={tab}>
-          {tab === 'home' && <Home go={setTab} />}
-          {tab === 'workout' && <WorkoutPage />}
-          {tab === 'nutrition' && <NutritionPage />}
-          {tab === 'progress' && (
-            <Suspense
-              fallback={<div className="py-20 text-center text-ink-faint text-sm">Loading charts…</div>}
-            >
-              <ProgressPage />
-            </Suspense>
-          )}
-          {tab === 'settings' && <SettingsPage />}
+          <div className="animate-fade">
+            {tab === 'home' && <Home go={setTab} />}
+            {tab === 'workout' && <WorkoutPage />}
+            {tab === 'nutrition' && <NutritionPage />}
+            {tab === 'progress' && (
+              <Suspense
+                fallback={<div className="py-20 text-center text-ink-faint text-sm">Loading charts…</div>}
+              >
+                <ProgressPage />
+              </Suspense>
+            )}
+            {tab === 'settings' && <SettingsPage />}
+          </div>
         </ErrorBoundary>
       </main>
       <RestTimer />

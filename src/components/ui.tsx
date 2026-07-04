@@ -2,7 +2,9 @@ import type { ReactNode } from 'react'
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded-2xl bg-surface border border-line/60 ${className}`}>{children}</div>
+    <div className={`rounded-2xl bg-surface border border-line/60 elevated ${className}`}>
+      {children}
+    </div>
   )
 }
 
@@ -41,7 +43,7 @@ export function Button({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-xl px-4 py-3 text-[15px] transition-colors select-none ${styles} ${className}`}
+      className={`rounded-xl px-4 py-3 text-[15px] tap select-none disabled:active:scale-100 ${styles} ${className}`}
     >
       {children}
     </button>
@@ -63,9 +65,10 @@ export function Sheet({
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
-      <div className="absolute inset-0 bg-black/70 animate-fade" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade" onClick={onClose} />
       <div className="relative animate-sheet rounded-t-3xl bg-surface border-t border-line max-h-[88dvh] flex flex-col safe-bottom">
-        <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
+        <div className="mx-auto mt-2.5 h-1 w-9 rounded-full bg-line shrink-0" />
+        <div className="flex items-center justify-between px-5 pt-2 pb-2 shrink-0">
           <h3 className="text-lg font-bold">{title}</h3>
           <button
             onClick={onClose}
@@ -167,8 +170,10 @@ export function Segmented<T extends string>({
         <button
           key={o.value}
           onClick={() => onChange(o.value)}
-          className={`flex-1 rounded-lg py-2 text-[14px] font-semibold transition-colors ${
-            value === o.value ? 'bg-ember text-black' : 'text-ink-dim'
+          className={`flex-1 rounded-lg py-2 text-[14px] font-semibold tap ${
+            value === o.value
+              ? 'bg-gradient-to-b from-ember-hi to-ember text-black shadow-[0_2px_8px_-2px_rgba(255,106,31,0.5)]'
+              : 'text-ink-dim'
           }`}
         >
           {o.label}
@@ -178,11 +183,25 @@ export function Segmented<T extends string>({
   )
 }
 
-export function EmptyState({ icon, text }: { icon: string; text: string }) {
+export function EmptyState({
+  icon,
+  title,
+  text,
+  action,
+}: {
+  icon: string
+  title?: string
+  text: string
+  action?: ReactNode
+}) {
   return (
-    <div className="text-center py-10 text-ink-faint">
-      <div className="text-3xl mb-2">{icon}</div>
-      <p className="text-[14px]">{text}</p>
+    <div className="text-center py-9 px-4 flex flex-col items-center">
+      <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center text-2xl mb-3">
+        {icon}
+      </div>
+      {title && <p className="text-[15px] font-semibold text-ink mb-1">{title}</p>}
+      <p className="text-[13px] text-ink-faint max-w-[15rem]">{text}</p>
+      {action && <div className="mt-4">{action}</div>}
     </div>
   )
 }

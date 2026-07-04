@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react'
 import type { Tab } from '../components/TabBar'
 import { Card, SectionTitle, Button } from '../components/ui'
 import { Ring, MacroBar } from '../components/Ring'
-import { useStore, workoutSetCount, workoutVolumeKg } from '../lib/store'
+import {
+  useStore,
+  workoutSetCount,
+  workoutVolumeKg,
+  activityStreak,
+  weekTrainingDots,
+  suggestNextRoutine,
+} from '../lib/store'
+import { useCountUp } from '../lib/hooks'
 import {
   dateKey,
   fmtInt,
@@ -13,6 +21,7 @@ import {
   toKg,
   parseNum,
   weekStart,
+  haptic,
 } from '../lib/util'
 
 export default function Home({ go }: { go: (tab: Tab) => void }) {
@@ -37,6 +46,13 @@ export default function Home({ go }: { go: (tab: Tab) => void }) {
   )
   const kcalLeft = goals.kcal - totals.kcal
   const over = kcalLeft < 0
+  const kcalDisplay = useCountUp(Math.abs(Math.round(kcalLeft)))
+  const proteinLeft = Math.max(0, Math.round(goals.protein - totals.protein))
+  const proteinHit = goals.protein > 0 && totals.protein >= goals.protein
+
+  // ---------- Streak + week consistency ----------
+  const streak = activityStreak(s.history, s.nutrition, s.bodyweight)
+  const dots = weekTrainingDots(s.history)
 
   // ---------- Training ----------
   const [elapsed, setElapsed] = useState(0)
@@ -52,13 +68,34 @@ export default function Home({ go }: { go: (tab: Tab) => void }) {
     ? s.active.exercises.reduce((n, e) => n + e.sets.filter((st) => st.done).length, 0)
     : 0
 
+  const suggestion = suggestNextRoutine(s.routines, s.history)
+  const trainedToday = s.history.some((w) => dateKey(new Date(w.startedAt)) === today)
+
+  const startWorkout = (routineId?: string) => {
+    haptic()
+    s.startWorkout(routineId)
+    go('workout')
+  }
+
   // ---------- This week ----------
   const thisWeekStart = weekStart(now).getTime()
+  const lastWeekStart = weekStart(new Date(thisWeekStart - 1)).getTime()
   const weekWorkouts = s.history.filter(
     (w) => weekStart(new Date(w.startedAt)).getTime() === thisWeekStart,
   )
+  const lastWeekWorkouts = s.history.filter(
+    (w) => weekStart(new Date(w.startedAt)).getTime() === lastWeekStart,
+  )
   const weekSets = weekWorkouts.reduce((n, w) => n + workoutSetCount(w), 0)
   const weekVolumeKg = weekWorkouts.reduce((n, w) => n + workoutVolumeKg(w), 0)
+  const lastWeekVolumeKg = lastWeekWorkouts.reduce((n, w) => n + workoutVolumeKg(w), 0)
+  const volumeDelta = weekVolumeKg - lastWeekVolumeKg
+  // Only show a delta when there's a prior week to compare against.
+  const showVolumeDelta = lastWeekVolumeKg > 0 && Math.abs(volumeDelta) > 0.5
+
+  const workoutsUp = useCountUp(weekWorkouts.length)
+  const setsUp = useCountUp(weekSets)
+  const volumeUp = useCountUp(fromKg(weekVolumeKg, unit))
 
   // ---------- Bodyweight ----------
   const latestBw = s.bodyweight.length ? s.bodyweight[s.bodyweight.length - 1] : null
@@ -66,6 +103,7 @@ export default function Home({ go }: { go: (tab: Tab) => void }) {
   const logBw = () => {
     const kg = toKg(parseNum(bwInput), unit)
     if (kg > 0) {
+      haptic()
       s.logBodyweight(today, kg)
       setBwInput('')
     }
@@ -80,7 +118,7 @@ export default function Home({ go }: { go: (tab: Tab) => void }) {
   return (
     <div>
       {/* Header */}
-      <header className="flex items-end justify-between pt-2 mb-5">
+      <header className="flex items-end justify-between pt-2 mb-3">
         <h1 className="text-2xl font-extrabold tracking-tight flex items-center gap-1.5">
           <Flame />
           <span>
@@ -89,6 +127,39 @@ export default function Home({ go }: { go: (tab: Tab) => void }) {
         </h1>
         <span className="text-[13px] text-ink-dim font-medium pb-0.5">{dateLabel}</span>
       </header>
+
+      {/* Streak + week consistency HUD */}
+      <div className="flex items-center justify-between gap-3 mb-5 px-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-lg leading-none shrink-0">🔥</span>
+          {streak > 0 ? (
+            <span className="text-[15px] font-bold text-ink leading-tight">
+              <span className="tnum text-ember">{streak}</span>
+              <span className="text-ink-dim font-semibold">-day streak</span>
+            </span>
+          ) : (
+            <span className="text-[13px] font-semibold text-ink-dim leading-tight">
+              Start your streak today
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0" aria-label="This week's training">
+          {dots.map((d) => (
+            <span
+              key={d.key}
+              className={`h-2 w-2 rounded-full ${
+                d.trained
+                  ? 'bg-ember shadow-[0_0_5px_rgba(255,106,31,0.6)]'
+                  : d.isToday
+                    ? 'ring-2 ring-ember ring-inset bg-transparent'
+                    : d.future
+                      ? 'bg-line/60'
+                      : 'bg-surface-2'
+              }`}
+            />
+          ))}
+        </div>
+      </div>
 
       {/* Today's fuel */}
       <SectionTitle>Today's Fuel</SectionTitle>
@@ -103,7 +174,7 @@ export default function Home({ go }: { go: (tab: Tab) => void }) {
                 over ? 'text-bad' : 'text-ink'
               }`}
             >
-              {fmtInt(Math.abs(Math.round(kcalLeft)))}
+              {fmtInt(kcalDisplay)}
             </span>
             <span className="text-[11px] text-ink-faint mt-1 font-medium">
               {over ? 'over' : 'kcal left'}
@@ -126,6 +197,18 @@ export default function Home({ go }: { go: (tab: Tab) => void }) {
           </div>
           <Chevron />
         </button>
+        <div className="px-4 pb-3 -mt-1">
+          <p className="text-[13px] font-semibold tnum">
+            {proteinHit ? (
+              <span className="text-ember">Protein goal hit 🔥</span>
+            ) : (
+              <>
+                <span className="text-protein">{fmtInt(proteinLeft)}g protein</span>
+                <span className="text-ink-dim font-medium"> left today</span>
+              </>
+            )}
+          </p>
+        </div>
       </Card>
 
       {/* Training */}
@@ -155,43 +238,61 @@ export default function Home({ go }: { go: (tab: Tab) => void }) {
               Resume Workout
             </Button>
           </>
-        ) : (
+        ) : suggestion ? (
           <>
-            <Button
-              className="w-full"
-              onClick={() => {
-                s.startWorkout()
-                go('workout')
-              }}
-            >
-              Start Workout
+            <div className="mb-3">
+              {trainedToday ? (
+                <p className="text-[15px] font-bold text-ink">Trained today 💪</p>
+              ) : (
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint mb-0.5">
+                  Next up
+                </p>
+              )}
+              <p className="text-lg font-bold text-ink truncate">{suggestion.routine.name}</p>
+              <p className="text-[13px] text-ink-dim mt-0.5">
+                {trainedToday
+                  ? 'Next session tomorrow'
+                  : lastTrainedLabel(suggestion.lastTs)}
+              </p>
+            </div>
+            <Button className="w-full" onClick={() => startWorkout(suggestion.routine.id)}>
+              Start {suggestion.routine.name}
             </Button>
-            {s.routines.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {s.routines.slice(0, 3).map((r) => (
-                  <button
-                    key={r.id}
-                    onClick={() => {
-                      s.startWorkout(r.id)
-                      go('workout')
-                    }}
-                    className="rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold text-ink-dim active:bg-line transition-colors"
-                  >
-                    {r.name}
-                  </button>
-                ))}
-              </div>
-            )}
           </>
+        ) : (
+          <Button className="w-full" onClick={() => startWorkout()}>
+            Start Workout
+          </Button>
+        )}
+        {!s.active && s.routines.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {s.routines
+              .filter((r) => !suggestion || r.id !== suggestion.routine.id)
+              .slice(0, 3)
+              .map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => startWorkout(r.id)}
+                  className="rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold text-ink-dim active:bg-line tap"
+                >
+                  {r.name}
+                </button>
+              ))}
+          </div>
         )}
       </Card>
 
       {/* This week */}
       <SectionTitle>This Week</SectionTitle>
       <Card className="flex divide-x divide-line/60">
-        <WeekTile label="Workouts" value={fmtInt(weekWorkouts.length)} />
-        <WeekTile label="Sets" value={fmtInt(weekSets)} />
-        <WeekTile label="Volume" value={fmtInt(fromKg(weekVolumeKg, unit))} suffix={unit} />
+        <WeekTile label="Workouts" value={fmtInt(workoutsUp)} />
+        <WeekTile label="Sets" value={fmtInt(setsUp)} />
+        <WeekTile
+          label="Volume"
+          value={fmtInt(volumeUp)}
+          suffix={unit}
+          delta={showVolumeDelta ? volumeDelta : undefined}
+        />
       </Card>
 
       {/* Bodyweight */}
@@ -229,15 +330,44 @@ export default function Home({ go }: { go: (tab: Tab) => void }) {
   )
 }
 
-function WeekTile({ label, value, suffix }: { label: string; value: string; suffix?: string }) {
+/** "last trained {N}d ago" or "not yet trained" for the prescriptive CTA caption. */
+function lastTrainedLabel(lastTs: number | null): string {
+  if (lastTs === null) return 'Not yet trained'
+  const days = Math.floor((Date.now() - lastTs) / 86_400_000)
+  if (days <= 0) return 'Last trained today'
+  if (days === 1) return 'Last trained yesterday'
+  return `Last trained ${days}d ago`
+}
+
+function WeekTile({
+  label,
+  value,
+  suffix,
+  delta,
+}: {
+  label: string
+  value: string
+  suffix?: string
+  delta?: number
+}) {
+  const up = (delta ?? 0) > 0
   return (
     <div className="flex-1 py-4 px-2 text-center">
       <div className="text-xl font-extrabold tnum">
         {value}
         {suffix && <span className="text-[13px] font-semibold text-ink-dim ml-0.5">{suffix}</span>}
       </div>
-      <div className="text-[10px] uppercase tracking-wider text-ink-faint font-semibold mt-1">
-        {label}
+      <div className="flex items-center justify-center gap-1 mt-1">
+        <span className="text-[10px] uppercase tracking-wider text-ink-faint font-semibold">
+          {label}
+        </span>
+        {delta !== undefined && (
+          <span
+            className={`text-[10px] font-bold tnum leading-none ${up ? 'text-good' : 'text-bad'}`}
+          >
+            {up ? '▲' : '▼'}
+          </span>
+        )}
       </div>
     </div>
   )

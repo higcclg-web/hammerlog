@@ -90,3 +90,24 @@ export function parseNum(s: string): number {
   const n = parseFloat(s.replace(',', '.'))
   return Number.isFinite(n) && n >= 0 ? n : 0
 }
+
+/** Fire a haptic buzz on supporting devices. No-op elsewhere. */
+export function haptic(pattern: number | number[] = 10): void {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    navigator.vibrate?.(pattern)
+  }
+}
+
+/**
+ * Exponentially-weighted moving average — smooths noisy daily weigh-ins into a
+ * trend line (the MacroFactor-style signal). Returns one smoothed value per input.
+ */
+export function ewma(values: number[], alpha = 0.25): number[] {
+  const out: number[] = []
+  let acc = 0
+  values.forEach((v, i) => {
+    acc = i === 0 ? v : alpha * v + (1 - alpha) * acc
+    out.push(acc)
+  })
+  return out
+}

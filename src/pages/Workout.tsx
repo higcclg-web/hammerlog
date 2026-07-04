@@ -10,6 +10,8 @@ import {
 } from '../components/ui'
 import { ExercisePicker } from '../components/ExercisePicker'
 import {
+  bestE1RMInHistory,
+  computePRs,
   exerciseName,
   lastPerformance,
   useStore,
@@ -17,6 +19,7 @@ import {
   workoutVolumeKg,
 } from '../lib/store'
 import type {
+  Exercise,
   Routine,
   RoutineExercise,
   Unit,
@@ -31,12 +34,29 @@ import {
   fmtDuration,
   fmtInt,
   fromKg,
+  haptic,
   parseNum,
   toKg,
   uid,
 } from '../lib/util'
 
 type SubTab = 'train' | 'routines' | 'history'
+
+/** Built-in starter routines, shown when the user has none of their own. */
+const STARTER_TEMPLATES: { name: string; exerciseIds: string[] }[] = [
+  {
+    name: 'Full Body',
+    exerciseIds: ['squat', 'bench-press', 'barbell-row', 'overhead-press', 'leg-curl'],
+  },
+  {
+    name: 'Upper / Lower',
+    exerciseIds: ['bench-press', 'barbell-row', 'overhead-press', 'lat-pulldown', 'db-curl'],
+  },
+  {
+    name: 'Push Pull Legs',
+    exerciseIds: ['bench-press', 'incline-bench-press', 'overhead-press', 'tricep-pushdown'],
+  },
+]
 
 /** m:ss, or h:mm:ss when at least an hour. */
 function fmtElapsed(totalSec: number): string {
@@ -84,28 +104,83 @@ function BrowseView() {
 
 function TrainTab() {
   const routines = useStore((s) => s.routines)
+  const custom = useStore((s) => s.customExercises)
   const startWorkout = useStore((s) => s.startWorkout)
+  const addExerciseToActive = useStore((s) => s.addExerciseToActive)
+  const saveRoutine = useStore((s) => s.saveRoutine)
+
+  function startTemplate(tpl: { name: string; exerciseIds: string[] }) {
+    haptic()
+    startWorkout()
+    for (const id of tpl.exerciseIds) addExerciseToActive(id)
+    // startWorkout picks a time-of-day name; give the started template its own.
+    useStore.getState().renameActive(tpl.name)
+  }
+
+  function saveTemplate(tpl: { name: string; exerciseIds: string[] }) {
+    haptic()
+    saveRoutine({
+      id: uid(),
+      name: tpl.name,
+      exercises: tpl.exerciseIds.map((exerciseId) => ({
+        exerciseId,
+        sets: [{ reps: 8, weightKg: 0 }],
+      })),
+    })
+  }
 
   return (
     <div className="space-y-6">
       <Button
         variant="primary"
         className="w-full py-4 text-[17px]"
-        onClick={() => startWorkout()}
+        onClick={() => {
+          haptic()
+          startWorkout()
+        }}
       >
         Start Empty Workout
       </Button>
 
-      <div>
-        <h2 className="text-[13px] font-semibold uppercase tracking-wider text-ink-faint px-1 mb-2">
-          Quick Start
-        </h2>
-        {routines.length === 0 ? (
-          <Card className="p-5 text-center text-ink-faint text-[14px]">
-            No routines yet. Build one in the Routines tab and it will show up
-            here for one-tap starts.
-          </Card>
-        ) : (
+      {routines.length === 0 ? (
+        <div>
+          <h2 className="text-[13px] font-semibold uppercase tracking-wider text-ink-faint px-1 mb-2">
+            Starter Routines
+          </h2>
+          <div className="space-y-2">
+            {STARTER_TEMPLATES.map((tpl) => (
+              <Card key={tpl.name} className="p-3.5">
+                <p className="font-semibold text-[15px] truncate">{tpl.name}</p>
+                <p className="text-[13px] text-ink-faint mt-0.5 truncate">
+                  {tpl.exerciseIds
+                    .map((id) => exerciseName(id, custom))
+                    .join(' · ')}
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    variant="primary"
+                    className="flex-1 py-2.5"
+                    onClick={() => startTemplate(tpl)}
+                  >
+                    Start
+                  </Button>
+                  <Button
+                    variant="surface"
+                    className="shrink-0 py-2.5"
+                    onClick={() => saveTemplate(tpl)}
+                  >
+                    Save as routine
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div>
+          <h2 className="text-[13px] font-semibold uppercase tracking-wider text-ink-faint px-1 mb-2">
+            Quick Start
+          </h2>
           <div className="space-y-2">
             {routines.map((r) => (
               <Card key={r.id} className="flex items-center gap-3 p-3.5">
@@ -120,15 +195,18 @@ function TrainTab() {
                 <Button
                   variant="surface"
                   className="shrink-0 py-2.5"
-                  onClick={() => startWorkout(r.id)}
+                  onClick={() => {
+                    haptic()
+                    startWorkout(r.id)
+                  }}
                 >
                   Start
                 </Button>
               </Card>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -597,6 +675,7 @@ function LiveSession() {
             variant="ghost"
             onClick={() => {
               if (window.confirm('Discard this workout? This cannot be undone.')) {
+                haptic()
                 discardWorkout()
               }
             }}
@@ -614,6 +693,7 @@ function LiveSession() {
           unit={unit}
           name={exerciseName(we.exerciseId, custom)}
           prev={lastPerformance(history, we.exerciseId)}
+          historyBest={bestE1RMInHistory(history, we.exerciseId)}
           onRemove={() => {
             if (window.confirm('Remove this exercise?')) removeExerciseFromActive(we.id)
           }}
@@ -644,8 +724,11 @@ function LiveSession() {
         open={finishOpen}
         active={active}
         unit={unit}
+        history={history}
+        custom={custom}
         onClose={() => setFinishOpen(false)}
         onConfirm={(saveAsRoutine, routineName) => {
+          haptic()
           const w = finishWorkout()
           if (saveAsRoutine && w) {
             saveRoutine({
@@ -669,6 +752,7 @@ function ExerciseCard({
   unit,
   name,
   prev,
+  historyBest,
   onRemove,
   onAddSet,
   onRemoveSet,
@@ -679,12 +763,33 @@ function ExerciseCard({
   unit: Unit
   name: string
   prev: ReturnType<typeof lastPerformance>
+  historyBest: number | null
   onRemove: () => void
   onAddSet: () => void
   onRemoveSet: (setId: string) => void
   onUpdateSet: (setId: string, patch: { reps?: number; weightKg?: number }) => void
   onToggleDone: (setId: string) => void
 }) {
+  // The single done set whose e1RM beats every earlier set this session AND
+  // beats the best in history is the PR. Only that set gets the PR pill.
+  const prSetId = useMemo(() => {
+    const threshold = historyBest ?? 0
+    let bestSoFar = 0
+    let prId: string | null = null
+    for (const st of we.sets) {
+      if (!st.done) continue
+      const e1 = epley1RM(st.weightKg, st.reps)
+      if (e1 <= 0) continue
+      if (e1 > bestSoFar && e1 > threshold + 0.01) {
+        bestSoFar = e1
+        prId = st.id
+      } else if (e1 > bestSoFar) {
+        bestSoFar = e1
+      }
+    }
+    return prId
+  }, [we.sets, historyBest])
+
   return (
     <Card className="p-3.5">
       <div className="flex items-center justify-between mb-2.5">
@@ -717,6 +822,7 @@ function ExerciseCard({
             reps={st.reps}
             done={st.done}
             unit={unit}
+            isPR={st.id === prSetId}
             prevSet={prev?.[i] ?? null}
             onCommit={(patch) => onUpdateSet(st.id, patch)}
             onCopyPrev={(patch) => onUpdateSet(st.id, patch)}
@@ -742,6 +848,7 @@ function SetRow({
   reps,
   done,
   unit,
+  isPR,
   prevSet,
   onCommit,
   onCopyPrev,
@@ -753,6 +860,7 @@ function SetRow({
   reps: number
   done: boolean
   unit: Unit
+  isPR: boolean
   prevSet: { reps: number; weightKg: number } | null
   onCommit: (patch: { reps?: number; weightKg?: number }) => void
   onCopyPrev: (patch: { reps: number; weightKg: number }) => void
@@ -763,7 +871,7 @@ function SetRow({
   const [rStr, setRStr] = useState(reps > 0 ? String(reps) : '')
 
   // Re-sync local strings when the store value changes from outside this row
-  // (e.g. tapping PREV, or addSet pre-copying numbers).
+  // (e.g. tapping PREV, steppers, or addSet pre-copying numbers).
   const lastW = useRef(weightKg)
   const lastR = useRef(reps)
   useEffect(() => {
@@ -779,6 +887,19 @@ function SetRow({
     }
   }, [reps])
 
+  // Fire the ember bloom once when a set first becomes a PR.
+  const [flare, setFlare] = useState(false)
+  const wasPR = useRef(false)
+  useEffect(() => {
+    if (isPR && !wasPR.current) {
+      setFlare(true)
+      const t = setTimeout(() => setFlare(false), 560)
+      wasPR.current = true
+      return () => clearTimeout(t)
+    }
+    if (!isPR) wasPR.current = false
+  }, [isPR])
+
   function commitWeight() {
     const kg = toKg(parseNum(wStr), unit)
     lastW.current = kg
@@ -790,18 +911,29 @@ function SetRow({
     onCommit({ reps: r })
   }
 
+  function handleToggleDone() {
+    // Toggling this set ON while it's the PR set earns the stronger buzz.
+    if (!done && isPR) haptic([15, 40, 15])
+    onToggleDone()
+  }
+
   const prevLabel = prevSet
     ? `${displayWeight(prevSet.weightKg, unit)}×${prevSet.reps}`
     : '—'
 
   return (
     <div
-      className={`flex items-center gap-2 rounded-lg py-1 px-1 transition-colors ${
+      className={`flex items-center gap-1.5 rounded-lg py-1 px-1 transition-colors ${
         done ? 'bg-good/10' : ''
-      }`}
+      } ${flare ? 'forge-flare' : ''}`}
     >
-      <span className="w-6 text-center text-[14px] tnum text-ink-faint shrink-0">
+      <span className="w-6 text-center text-[14px] tnum text-ink-faint shrink-0 relative">
         {index}
+        {isPR && (
+          <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-ember px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-black leading-none">
+            PR
+          </span>
+        )}
       </span>
       <button
         onClick={() => {
@@ -818,7 +950,8 @@ function SetRow({
         onChange={(e) => setWStr(e.target.value)}
         onBlur={commitWeight}
         placeholder={prevSet ? displayWeight(prevSet.weightKg, unit) : '0'}
-        className="flex-1 min-w-0 rounded-lg bg-surface-2 border border-line focus:border-ember/70 outline-none text-center py-2 text-[15px] tnum transition-colors placeholder:text-ink-faint"
+        aria-label="Weight"
+        className="flex-1 min-w-0 rounded-lg bg-surface-2 border border-line focus:border-ember/70 outline-none text-center py-2.5 text-[15px] tnum transition-colors placeholder:text-ink-faint"
       />
       <input
         inputMode="decimal"
@@ -826,10 +959,11 @@ function SetRow({
         onChange={(e) => setRStr(e.target.value)}
         onBlur={commitReps}
         placeholder={prevSet ? String(prevSet.reps) : '0'}
-        className="flex-1 min-w-0 rounded-lg bg-surface-2 border border-line focus:border-ember/70 outline-none text-center py-2 text-[15px] tnum transition-colors placeholder:text-ink-faint"
+        aria-label="Reps"
+        className="flex-1 min-w-0 rounded-lg bg-surface-2 border border-line focus:border-ember/70 outline-none text-center py-2.5 text-[15px] tnum transition-colors placeholder:text-ink-faint"
       />
       <button
-        onClick={onToggleDone}
+        onClick={handleToggleDone}
         aria-label={done ? 'Mark set not done' : 'Mark set done'}
         className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center transition-colors ${
           done ? 'bg-good text-black' : 'bg-surface-2 text-ink-faint active:bg-line'
@@ -860,12 +994,16 @@ function FinishSheet({
   open,
   active,
   unit,
+  history,
+  custom,
   onClose,
   onConfirm,
 }: {
   open: boolean
   active: Workout
   unit: Unit
+  history: Workout[]
+  custom: Exercise[]
   onClose: () => void
   onConfirm: (saveAsRoutine: boolean, routineName: string) => void
 }) {
@@ -876,6 +1014,17 @@ function FinishSheet({
   useEffect(() => {
     if (!open) setRoutineName(active.name)
   }, [open, active.name])
+
+  // history does NOT yet include the active workout, so this is the true set of PRs.
+  const prs = useMemo(
+    () => (open ? computePRs(active, history, custom) : []),
+    [open, active, history, custom],
+  )
+
+  // Celebrate once when the sheet opens with records.
+  useEffect(() => {
+    if (open && prs.length > 0) haptic([15, 40, 15])
+  }, [open, prs.length])
 
   const duration = fmtDuration(Date.now() - active.startedAt)
   const exCount = active.exercises.length
@@ -888,6 +1037,38 @@ function FinishSheet({
   return (
     <Sheet open={open} onClose={onClose} title="Finish Workout">
       <div className="space-y-4">
+        {prs.length > 0 && (
+          <div className="forge-flare rounded-xl border border-ember/40 bg-ember/10 p-3.5">
+            <p className="text-[15px] font-extrabold text-ember mb-2">
+              🔥 {prs.length} Personal Record{prs.length === 1 ? '' : 's'}
+            </p>
+            <div className="space-y-1.5">
+              {prs.map((pr) => {
+                const gain =
+                  pr.prevKg != null
+                    ? Math.round((fromKg(pr.e1rmKg, unit) - fromKg(pr.prevKg, unit)) * 10) / 10
+                    : null
+                return (
+                  <div
+                    key={pr.exerciseId}
+                    className="flex items-baseline justify-between gap-2 text-[14px]"
+                  >
+                    <span className="font-semibold text-ink truncate min-w-0">{pr.name}</span>
+                    <span className="tnum text-ink-dim shrink-0">
+                      {displayWeight(pr.e1rmKg, unit)} {unit} e1RM
+                      {gain != null && gain > 0 && (
+                        <span className="text-ember font-semibold ml-1.5">
+                          +{gain} {unit}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <SummaryCell label="Duration" value={duration} />
           <SummaryCell label="Exercises" value={String(exCount)} />

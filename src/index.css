@@ -60,7 +60,7 @@ textarea {
 
 @keyframes sheet-up {
   from {
-    transform: translateY(24px);
+    transform: translateY(40px);
     opacity: 0;
   }
   to {
@@ -69,7 +69,77 @@ textarea {
   }
 }
 .animate-sheet {
-  animation: sheet-up 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
+  animation: sheet-up 0.26s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+/* Tactile press feedback — apply to any tappable element. */
+.tap {
+  transition:
+    transform 0.1s ease,
+    opacity 0.1s ease,
+    background-color 0.15s ease;
+  touch-action: manipulation;
+}
+.tap:active {
+  transform: scale(0.97);
+}
+
+/* Forge signature: a one-shot ember bloom for goal hits and PRs. */
+@keyframes forge-flare {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.forge-flare {
+  animation: forge-flare 0.55s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+@keyframes ember-in {
+  from {
+    transform: translateY(6px) scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+.ember-in {
+  animation: ember-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+/* Card elevation: a 1px top light-catch + soft grounding shadow on pure black. */
+.elevated {
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.035),
+    0 2px 14px -8px rgba(0, 0, 0, 0.7);
+}
+
+/* Keyboard/switch-control focus — invisible today. */
+:focus-visible {
+  outline: 2px solid var(--color-ember);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forge-flare,
+  .ember-in,
+  .animate-sheet,
+  .animate-fade,
+  .pulse-ember {
+    animation: none;
+  }
 }
 
 @keyframes fade-in {

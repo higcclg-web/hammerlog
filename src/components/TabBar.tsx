@@ -84,8 +84,10 @@ export function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void
             <button
               key={t.id}
               onClick={() => onChange(t.id)}
-              className={`flex-1 flex flex-col items-center gap-0.5 pt-2 pb-1.5 select-none transition-colors ${
-                active ? 'text-ember' : 'text-ink-faint active:text-ink-dim'
+              className={`flex-1 flex flex-col items-center gap-0.5 pt-2 pb-1.5 select-none transition-colors tap ${
+                active
+                  ? 'text-ember [&>svg]:drop-shadow-[0_0_6px_rgba(255,106,31,0.5)]'
+                  : 'text-ink-faint active:text-ink-dim'
               }`}
               aria-label={t.label}
               aria-current={active ? 'page' : undefined}

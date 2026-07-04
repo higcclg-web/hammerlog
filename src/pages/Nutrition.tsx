@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Food, FoodEntry, MealKey } from '../lib/types'
-import { addDays, dateKey, fmtDay, fmtInt, parseKey, parseNum } from '../lib/util'
-import { useStore } from '../lib/store'
+import { addDays, dateKey, fmtDay, fmtInt, haptic, parseKey, parseNum } from '../lib/util'
+import { mostRecentLoggedDay, sortFoodsByRecentUse, useStore } from '../lib/store'
 import { Button, Card, EmptyState, Field, SectionTitle, Segmented, Sheet } from '../components/ui'
 import { MacroBar, Ring } from '../components/Ring'
+import { useCountUp } from '../lib/hooks'
 
 const MEALS: { key: MealKey; label: string }[] = [
   { key: 'breakfast', label: 'Breakfast' },
@@ -14,13 +15,29 @@ const MEALS: { key: MealKey; label: string }[] = [
 
 const mealLabel = (m: MealKey) => MEALS.find((x) => x.key === m)!.label
 
+/** Latest day strictly before `date` that contains entries for `meal`. */
+function mealCopySource(
+  nutrition: Record<string, FoodEntry[]>,
+  date: string,
+  meal: MealKey,
+): string | null {
+  let best: string | null = null
+  for (const [d, list] of Object.entries(nutrition)) {
+    if (d >= date) continue
+    if (!list.some((e) => e.meal === meal)) continue
+    if (best === null || d > best) best = d
+  }
+  return best
+}
+
 // Stable reference for days with no entries. Returning a fresh `[]` from the
 // zustand selector makes every render look like a state change -> infinite loop.
 const NO_ENTRIES: FoodEntry[] = []
 
 function fmtQty(q: number): string {
+  // Round to 2 decimals, then strip any trailing zeros (1.50 -> "1.5", 2.00 -> "2").
   const r = Math.round(q * 100) / 100
-  return Number.isInteger(r) ? String(r) : String(r)
+  return Number.isInteger(r) ? String(r) : String(r).replace(/\.?0+$/, '')
 }
 
 /** Stepper + editable numeric qty. Shared by add + edit flows. */
@@ -76,6 +93,7 @@ function TrashIcon() {
 export default function NutritionPage() {
   const [date, setDate] = useState(() => dateKey())
   const entries = useStore((s) => s.nutrition[date] ?? NO_ENTRIES)
+  const nutrition = useStore((s) => s.nutrition)
   const goals = useStore((s) => s.settings.goals)
   const foods = useStore((s) => s.foods)
   const logFood = useStore((s) => s.logFood)
@@ -83,9 +101,22 @@ export default function NutritionPage() {
   const deleteFood = useStore((s) => s.deleteFood)
   const updateFoodEntry = useStore((s) => s.updateFoodEntry)
   const deleteFoodEntry = useStore((s) => s.deleteFoodEntry)
+  const copyMeal = useStore((s) => s.copyMeal)
+  const copyDay = useStore((s) => s.copyDay)
 
   const [addMeal, setAddMeal] = useState<MealKey | null>(null)
   const [editEntry, setEditEntry] = useState<FoodEntry | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+
+  const flash = (msg: string) => {
+    haptic()
+    setToast(msg)
+  }
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 1600)
+    return () => clearTimeout(t)
+  }, [toast])
 
   const totals = useMemo(() => {
     return entries.reduce(
@@ -102,6 +133,11 @@ export default function NutritionPage() {
 
   const kcalLeft = goals.kcal - totals.kcal
   const over = kcalLeft < 0
+  const proteinLeft = Math.max(0, Math.round(goals.protein - totals.protein))
+  const proteinHit = totals.protein >= goals.protein
+  const kcalCount = Math.round(useCountUp(totals.kcal))
+
+  const recentDay = useMemo(() => mostRecentLoggedDay(nutrition, date), [nutrition, date])
 
   const fullDate = parseKey(date).toLocaleDateString('en-US', {
     weekday: 'long',
@@ -142,7 +178,7 @@ export default function NutritionPage() {
         <div className="flex items-center gap-4">
           <div className="shrink-0">
             <Ring value={totals.kcal} goal={goals.kcal} size={124} stroke={10}>
-              <span className="text-[26px] font-extrabold tnum leading-none">{fmtInt(totals.kcal)}</span>
+              <span className="text-[26px] font-extrabold tnum leading-none">{fmtInt(kcalCount)}</span>
               <span className="text-[11px] text-ink-faint mt-1 tnum">of {fmtInt(goals.kcal)}</span>
             </Ring>
           </div>
@@ -152,36 +188,97 @@ export default function NutritionPage() {
             <MacroBar label="Fat" value={totals.fat} goal={goals.fat} color="var(--color-fat)" />
           </div>
         </div>
-        <div className={`mt-4 pt-3 border-t border-line/60 text-center text-[13px] tnum ${over ? 'text-bad' : 'text-ink-dim'}`}>
-          {over ? `${fmtInt(-kcalLeft)} kcal over` : `${fmtInt(kcalLeft)} kcal left`}
+        {/* Protein is the hero macro — serious users track it hardest. */}
+        <div className="mt-4 pt-3 border-t border-line/60 flex items-center justify-between gap-3">
+          <div className="flex items-baseline gap-1.5 min-w-0">
+            <span
+              className="w-2 h-2 rounded-full shrink-0 self-center"
+              style={{ background: 'var(--color-protein)' }}
+            />
+            {proteinHit ? (
+              <span className="text-[14px] font-bold tnum text-protein">Protein goal hit</span>
+            ) : (
+              <span className="text-[14px] tnum text-ink-dim">
+                <span className="text-[17px] font-extrabold text-protein">{proteinLeft}g</span> protein left
+              </span>
+            )}
+          </div>
+          <span className={`text-[13px] tnum shrink-0 ${over ? 'text-bad font-semibold' : 'text-ink-dim'}`}>
+            {over ? `${fmtInt(-kcalLeft)} kcal over` : `${fmtInt(kcalLeft)} kcal left`}
+          </span>
         </div>
       </Card>
 
-      {entries.length === 0 && (
-        <p className="text-center text-[13px] text-ink-faint mt-3">Log your first food of the day</p>
-      )}
+      {entries.length === 0 &&
+        (recentDay ? (
+          <div className="mt-3">
+            <EmptyState
+              icon="📋"
+              text="Nothing logged yet. Start fresh, or copy your last logged day."
+              action={
+                <Button
+                  variant="surface"
+                  onClick={() => {
+                    const n = copyDay(recentDay, date)
+                    if (n > 0) flash(`Copied ${n} item${n === 1 ? '' : 's'} from ${fmtDay(recentDay)}`)
+                  }}
+                >
+                  Copy {fmtDay(recentDay)}
+                </Button>
+              }
+            />
+          </div>
+        ) : (
+          <p className="text-center text-[13px] text-ink-faint mt-3">Log your first food of the day</p>
+        ))}
 
       {/* Meals */}
       {MEALS.map(({ key, label }) => {
         const mealEntries = entries.filter((e) => e.meal === key)
-        const mealKcal = mealEntries.reduce((s, e) => s + e.kcal * e.qty, 0)
+        const m = mealEntries.reduce(
+          (acc, e) => {
+            acc.kcal += e.kcal * e.qty
+            acc.protein += e.protein * e.qty
+            acc.carbs += e.carbs * e.qty
+            acc.fat += e.fat * e.qty
+            return acc
+          },
+          { kcal: 0, protein: 0, carbs: 0, fat: 0 },
+        )
+        // Most recent prior day that has this meal — source for a one-tap "Copy".
+        const copySrc = mealCopySource(nutrition, date, key)
         return (
           <div key={key}>
             <SectionTitle
               action={
-                mealKcal > 0 ? (
-                  <span className="text-[13px] font-semibold tnum text-ink-dim">{fmtInt(mealKcal)} kcal</span>
+                m.kcal > 0 ? (
+                  <span className="text-[13px] font-semibold tnum text-ink-dim">{fmtInt(m.kcal)} kcal</span>
+                ) : copySrc ? (
+                  <button
+                    onClick={() => {
+                      const n = copyMeal(copySrc, date, key)
+                      if (n > 0) flash(`Copied ${label} from ${fmtDay(copySrc)}`)
+                    }}
+                    className="text-[12px] font-semibold text-ember active:opacity-70 select-none tnum"
+                  >
+                    Copy {fmtDay(copySrc)}
+                  </button>
                 ) : undefined
               }
             >
               {label}
             </SectionTitle>
             <Card>
+              {m.kcal > 0 && (
+                <div className="px-4 pt-2.5 pb-1.5 text-[12px] text-ink-faint tnum border-b border-line/60">
+                  P {Math.round(m.protein)} · C {Math.round(m.carbs)} · F {Math.round(m.fat)}
+                </div>
+              )}
               {mealEntries.map((e) => (
                 <button
                   key={e.id}
                   onClick={() => setEditEntry(e)}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left border-b border-line/60 active:bg-surface-2 first:rounded-t-2xl transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left border-b border-line/60 active:bg-surface-2 tap transition-colors"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="text-[15px] font-medium truncate">
@@ -197,7 +294,7 @@ export default function NutritionPage() {
               ))}
               <button
                 onClick={() => setAddMeal(key)}
-                className="w-full text-left px-4 py-3 text-[15px] text-ember font-semibold active:bg-surface-2 rounded-b-2xl first:rounded-t-2xl transition-colors select-none"
+                className="w-full text-left px-4 py-3 text-[15px] text-ember font-semibold active:bg-surface-2 rounded-b-2xl first:rounded-t-2xl transition-colors select-none tap"
               >
                 + Add food
               </button>
@@ -210,8 +307,12 @@ export default function NutritionPage() {
         <AddSheet
           meal={addMeal}
           foods={foods}
+          nutrition={nutrition}
           onClose={() => setAddMeal(null)}
-          onLog={(entry) => logFood(date, entry)}
+          onLog={(entry) => {
+            logFood(date, entry)
+            haptic()
+          }}
           onSaveFood={addFood}
           onDeleteFood={deleteFood}
         />
@@ -222,8 +323,23 @@ export default function NutritionPage() {
           entry={editEntry}
           onClose={() => setEditEntry(null)}
           onSave={(qty) => updateFoodEntry(date, editEntry.id, { qty })}
+          onAddAgain={() => {
+            const { id: _id, ...rest } = editEntry
+            void _id
+            logFood(date, rest)
+            haptic()
+            flash('Added again ✓')
+          }}
           onDelete={() => deleteFoodEntry(date, editEntry.id)}
         />
+      )}
+
+      {toast && (
+        <div className="fixed inset-x-0 bottom-24 z-[60] flex justify-center px-4 pointer-events-none">
+          <div className="ember-in rounded-full bg-surface-2 border border-line px-4 py-2 text-[13px] font-semibold text-ink shadow-lg tnum">
+            {toast}
+          </div>
+        </div>
       )}
     </div>
   )
@@ -234,6 +350,7 @@ export default function NutritionPage() {
 function AddSheet({
   meal,
   foods,
+  nutrition,
   onClose,
   onLog,
   onSaveFood,
@@ -241,12 +358,23 @@ function AddSheet({
 }: {
   meal: MealKey
   foods: Food[]
+  nutrition: Record<string, FoodEntry[]>
   onClose: () => void
   onLog: (entry: Omit<FoodEntry, 'id'>) => void
   onSaveFood: (food: Omit<Food, 'id'>) => Food
   onDeleteFood: (id: string) => void
 }) {
   const [tab, setTab] = useState<'my' | 'new'>('my')
+  // Running tally + last-added name so the sheet can stay open across adds.
+  const [logged, setLogged] = useState(0)
+  const [lastAdded, setLastAdded] = useState<string | null>(null)
+
+  const confirm = (name: string) => {
+    setLogged((n) => n + 1)
+    setLastAdded(name)
+  }
+
+  const doneLabel = logged > 0 ? `Done · ${logged} logged` : 'Done'
 
   return (
     <Sheet open onClose={onClose} title={`Add to ${mealLabel(meal)}`}>
@@ -261,22 +389,29 @@ function AddSheet({
         />
       </div>
       {tab === 'my' ? (
-        <MyFoods
-          foods={foods}
-          onAdd={(food, qty) => {
-            onLog({
-              name: food.name,
-              meal,
-              qty,
-              kcal: food.kcal,
-              protein: food.protein,
-              carbs: food.carbs,
-              fat: food.fat,
-            })
-            onClose()
-          }}
-          onDeleteFood={onDeleteFood}
-        />
+        <>
+          <MyFoods
+            foods={foods}
+            nutrition={nutrition}
+            lastAdded={lastAdded}
+            onAdd={(food, qty) => {
+              onLog({
+                name: food.name,
+                meal,
+                qty,
+                kcal: food.kcal,
+                protein: food.protein,
+                carbs: food.carbs,
+                fat: food.fat,
+              })
+              confirm(food.name)
+            }}
+            onDeleteFood={onDeleteFood}
+          />
+          <Button className="w-full mt-4" onClick={onClose}>
+            {doneLabel}
+          </Button>
+        </>
       ) : (
         <NewFood
           onSubmit={({ save, food, qty }) => {
@@ -292,10 +427,14 @@ function AddSheet({
 
 function MyFoods({
   foods,
+  nutrition,
+  lastAdded,
   onAdd,
   onDeleteFood,
 }: {
   foods: Food[]
+  nutrition: Record<string, FoodEntry[]>
+  lastAdded: string | null
   onAdd: (food: Food, qty: number) => void
   onDeleteFood: (id: string) => void
 }) {
@@ -303,11 +442,13 @@ function MyFoods({
   const [openId, setOpenId] = useState<string | null>(null)
   const [qty, setQty] = useState('1')
 
+  // Recency-sorted first (most-recently-logged floats up), then search-filtered.
+  const sorted = useMemo(() => sortFoodsByRecentUse(foods, nutrition), [foods, nutrition])
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    if (!needle) return foods
-    return foods.filter((f) => f.name.toLowerCase().includes(needle))
-  }, [foods, q])
+    if (!needle) return sorted
+    return sorted.filter((f) => f.name.toLowerCase().includes(needle))
+  }, [sorted, q])
 
   if (foods.length === 0) {
     return <EmptyState icon="🥗" text="Foods you add are saved here for instant reuse" />
@@ -323,13 +464,21 @@ function MyFoods({
       <div className="mb-3">
         <Field type="text" value={q} onChange={setQ} placeholder="Search foods" />
       </div>
+      {lastAdded && (
+        <p className="ember-in text-[13px] font-semibold text-good text-center mb-2 tnum">
+          Added {lastAdded} ✓
+        </p>
+      )}
       <div className="flex flex-col gap-1">
         {filtered.map((f) => {
           const open = openId === f.id
           return (
             <div key={f.id} className="rounded-xl bg-surface-2 border border-line overflow-hidden">
               <div className="flex items-center">
-                <button onClick={() => openRow(f.id)} className="flex-1 min-w-0 text-left px-3.5 py-3 active:opacity-70">
+                <button
+                  onClick={() => openRow(f.id)}
+                  className="flex-1 min-w-0 text-left px-3.5 py-3 active:opacity-70 tap"
+                >
                   <div className="text-[15px] font-medium truncate">{f.name}</div>
                   <div className="text-[12px] text-ink-faint tnum mt-0.5">
                     {f.serving} · {fmtInt(f.kcal)} kcal
@@ -351,7 +500,14 @@ function MyFoods({
               {open && (
                 <div className="px-3.5 pb-3.5 pt-1 flex flex-col gap-3 border-t border-line">
                   <QtyEditor value={qty} onChange={setQty} />
-                  <Button onClick={() => onAdd(f, parseNum(qty) || 1)}>
+                  <Button
+                    onClick={() => {
+                      onAdd(f, parseNum(qty) || 1)
+                      // Collapse the expanded row and reset qty for the next rapid add.
+                      setOpenId(null)
+                      setQty('1')
+                    }}
+                  >
                     Add {fmtInt(f.kcal * (parseNum(qty) || 1))} kcal
                   </Button>
                 </div>
@@ -440,11 +596,13 @@ function EditSheet({
   entry,
   onClose,
   onSave,
+  onAddAgain,
   onDelete,
 }: {
   entry: FoodEntry
   onClose: () => void
   onSave: (qty: number) => void
+  onAddAgain: () => void
   onDelete: () => void
 }) {
   const [qty, setQty] = useState(() => fmtQty(entry.qty))
@@ -457,12 +615,21 @@ function EditSheet({
           <div className="text-[16px] font-semibold">{entry.name}</div>
           <div className="text-[12px] text-ink-faint tnum mt-0.5">{fmtInt(entry.kcal)} kcal / serving</div>
         </div>
+        <Button
+          onClick={() => {
+            onAddAgain()
+            onClose()
+          }}
+        >
+          Add again ({fmtQty(entry.qty)}× · {fmtInt(entry.kcal * entry.qty)} kcal)
+        </Button>
         <QtyEditor value={qty} onChange={setQty} />
         <div className="text-center text-[13px] text-ink-dim tnum">
           Total <span className="text-ink font-semibold">{fmtInt(entry.kcal * q)}</span> kcal · P{' '}
           {Math.round(entry.protein * q)} · C {Math.round(entry.carbs * q)} · F {Math.round(entry.fat * q)}
         </div>
         <Button
+          variant="surface"
           onClick={() => {
             onSave(q)
             onClose()

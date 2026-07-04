@@ -5,6 +5,7 @@ import type {
   Exercise,
   Food,
   FoodEntry,
+  MealKey,
   Routine,
   SetEntry,
   Settings,
@@ -12,7 +13,7 @@ import type {
   WorkoutExercise,
 } from './types'
 import { EXERCISE_LIBRARY } from './exercises'
-import { uid } from './util'
+import { addDays, dateKey, epley1RM, uid, weekStart } from './util'
 
 export interface ForgeState {
   settings: Settings
@@ -46,10 +47,13 @@ export interface ForgeState {
   clearRest: () => void
 
   addFood: (food: Omit<Food, 'id'>) => Food
+  updateFood: (id: string, patch: Partial<Omit<Food, 'id'>>) => void
   deleteFood: (id: string) => void
   logFood: (date: string, entry: Omit<FoodEntry, 'id'>) => void
   updateFoodEntry: (date: string, id: string, patch: Partial<FoodEntry>) => void
   deleteFoodEntry: (date: string, id: string) => void
+  copyMeal: (fromDate: string, toDate: string, meal: MealKey) => number
+  copyDay: (fromDate: string, toDate: string) => number
 
   logBodyweight: (date: string, kg: number) => void
   deleteBodyweight: (date: string) => void
@@ -263,6 +267,9 @@ export const useStore = create<ForgeState>()(
         return f
       },
 
+      updateFood: (id, patch) =>
+        set((s) => ({ foods: s.foods.map((f) => (f.id === id ? { ...f, ...patch } : f)) })),
+
       deleteFood: (id) => set((s) => ({ foods: s.foods.filter((f) => f.id !== id) })),
 
       logFood: (date, entry) =>
@@ -272,6 +279,36 @@ export const useStore = create<ForgeState>()(
             [date]: [...(s.nutrition[date] ?? []), { ...entry, id: uid() }],
           },
         })),
+
+      copyMeal: (fromDate, toDate, meal) => {
+        const src = (get().nutrition[fromDate] ?? []).filter((e) => e.meal === meal)
+        if (src.length === 0) return 0
+        set((s) => ({
+          nutrition: {
+            ...s.nutrition,
+            [toDate]: [
+              ...(s.nutrition[toDate] ?? []),
+              ...src.map((e) => ({ ...e, id: uid() })),
+            ],
+          },
+        }))
+        return src.length
+      },
+
+      copyDay: (fromDate, toDate) => {
+        const src = get().nutrition[fromDate] ?? []
+        if (src.length === 0) return 0
+        set((s) => ({
+          nutrition: {
+            ...s.nutrition,
+            [toDate]: [
+              ...(s.nutrition[toDate] ?? []),
+              ...src.map((e) => ({ ...e, id: uid() })),
+            ],
+          },
+        }))
+        return src.length
+      },
 
       updateFoodEntry: (date, id, patch) =>
         set((s) => ({
@@ -374,4 +411,151 @@ export function exportPayload(): string {
     null,
     2,
   )
+}
+
+// ---------- Personal records ----------
+
+export interface PR {
+  exerciseId: string
+  name: string
+  e1rmKg: number
+  prevKg: number | null
+}
+
+/** Best estimated 1RM for an exercise across history (optionally excluding one workout). */
+export function bestE1RMInHistory(
+  history: Workout[],
+  exerciseId: string,
+  excludeWorkoutId?: string,
+): number | null {
+  let best: number | null = null
+  for (const w of history) {
+    if (w.id === excludeWorkoutId) continue
+    for (const e of w.exercises) {
+      if (e.exerciseId !== exerciseId) continue
+      for (const st of e.sets) {
+        if (st.reps <= 0 || st.weightKg <= 0) continue
+        const v = epley1RM(st.weightKg, st.reps)
+        if (best === null || v > best) best = v
+      }
+    }
+  }
+  return best
+}
+
+/** Exercises in this workout whose best e1RM beats everything in prior history. */
+export function computePRs(workout: Workout, history: Workout[], custom: Exercise[]): PR[] {
+  const bestByEx = new Map<string, number>()
+  for (const e of workout.exercises) {
+    for (const st of e.sets) {
+      if (st.reps <= 0 || st.weightKg <= 0) continue
+      const v = epley1RM(st.weightKg, st.reps)
+      bestByEx.set(e.exerciseId, Math.max(bestByEx.get(e.exerciseId) ?? 0, v))
+    }
+  }
+  const prs: PR[] = []
+  for (const [exerciseId, best] of bestByEx) {
+    const prev = bestE1RMInHistory(history, exerciseId, workout.id)
+    if (best > (prev ?? 0) + 0.01) {
+      prs.push({ exerciseId, name: exerciseName(exerciseId, custom), e1rmKg: best, prevKg: prev })
+    }
+  }
+  return prs.sort((a, b) => b.e1rmKg - a.e1rmKg)
+}
+
+// ---------- Streak / consistency ----------
+
+/** Consecutive days ending today (or yesterday, if today is still empty) with any activity. */
+export function activityStreak(
+  history: Workout[],
+  nutrition: Record<string, FoodEntry[]>,
+  bodyweight: BodyweightEntry[],
+): number {
+  const active = new Set<string>()
+  for (const w of history) active.add(dateKey(new Date(w.startedAt)))
+  for (const [k, entries] of Object.entries(nutrition)) if ((entries?.length ?? 0) > 0) active.add(k)
+  for (const b of bodyweight) active.add(b.date)
+
+  let cursor = dateKey()
+  if (!active.has(cursor)) cursor = addDays(cursor, -1) // today still open — don't break the chain yet
+  let streak = 0
+  while (active.has(cursor)) {
+    streak++
+    cursor = addDays(cursor, -1)
+  }
+  return streak
+}
+
+export interface WeekDot {
+  key: string
+  trained: boolean
+  isToday: boolean
+  future: boolean
+}
+
+/** Mon–Sun dots for the current week, marking days a workout was done. */
+export function weekTrainingDots(history: Workout[]): WeekDot[] {
+  const start = weekStart(new Date())
+  const today = dateKey()
+  const trained = new Set(history.map((w) => dateKey(new Date(w.startedAt))))
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start)
+    d.setDate(d.getDate() + i)
+    const key = dateKey(d)
+    return { key, trained: trained.has(key), isToday: key === today, future: key > today }
+  })
+}
+
+// ---------- Suggestions & recency ----------
+
+/** The routine least-recently trained (never-trained first), for a "Next up" prompt. */
+export function suggestNextRoutine(
+  routines: Routine[],
+  history: Workout[],
+): { routine: Routine; lastTs: number | null } | null {
+  if (routines.length === 0) return null
+  const lastByName = new Map<string, number>()
+  for (const w of history) {
+    lastByName.set(w.name, Math.max(lastByName.get(w.name) ?? 0, w.startedAt))
+  }
+  let best: { routine: Routine; lastTs: number | null } | null = null
+  for (const r of routines) {
+    const lastTs = lastByName.get(r.name) ?? null
+    if (!best) {
+      best = { routine: r, lastTs }
+      continue
+    }
+    if (lastTs === null && best.lastTs !== null) best = { routine: r, lastTs }
+    else if (lastTs !== null && best.lastTs !== null && lastTs < best.lastTs)
+      best = { routine: r, lastTs }
+  }
+  return best
+}
+
+/** Saved foods ordered by most-recent logged use (unused foods keep their order, last). */
+export function sortFoodsByRecentUse(
+  foods: Food[],
+  nutrition: Record<string, FoodEntry[]>,
+): Food[] {
+  const lastUsed = new Map<string, string>()
+  for (const [date, entries] of Object.entries(nutrition)) {
+    for (const e of entries) {
+      const prev = lastUsed.get(e.name)
+      if (!prev || date > prev) lastUsed.set(e.name, date)
+    }
+  }
+  return [...foods].sort((a, b) => (lastUsed.get(b.name) ?? '').localeCompare(lastUsed.get(a.name) ?? ''))
+}
+
+/** Latest logged day strictly before `beforeDate` (for "copy yesterday"). */
+export function mostRecentLoggedDay(
+  nutrition: Record<string, FoodEntry[]>,
+  beforeDate: string,
+): string | null {
+  let best: string | null = null
+  for (const [date, entries] of Object.entries(nutrition)) {
+    if (date >= beforeDate || (entries?.length ?? 0) === 0) continue
+    if (best === null || date > best) best = date
+  }
+  return best
 }
