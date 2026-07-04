@@ -1,4 +1,4 @@
-# Forgelog 🔨
+# Hammerlog 🔨
 
 A workout + nutrition tracker that runs entirely on your device. No accounts, no servers, no tracking — just you and the iron.
 
@@ -15,7 +15,7 @@ A workout + nutrition tracker that runs entirely on your device. No accounts, no
 
 All data lives in your browser's local storage on your device. Nothing is ever sent anywhere. Export regularly if you care about your logs — clearing site data erases them.
 
-> Forgelog is not medical or nutritional advice. Targets and 1RM estimates are informational only.
+> Hammerlog is not medical or nutritional advice. Targets and 1RM estimates are informational only.
 
 ## Stack
 

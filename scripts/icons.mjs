@@ -1,4 +1,4 @@
-// Renders the Forgelog anvil mark into the full PWA icon set.
+// Renders the Hammerlog anvil mark into the full PWA icon set.
 import sharp from 'sharp'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'

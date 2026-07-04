@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'icons/*.png'],
       manifest: {
-        name: 'Forgelog',
-        short_name: 'Forgelog',
+        name: 'Hammerlog',
+        short_name: 'Hammerlog',
         description: 'Workout and nutrition tracker. All data stays on your device.',
         theme_color: '#0a0a0b',
         background_color: '#0a0a0b',

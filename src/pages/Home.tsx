@@ -84,7 +84,7 @@ export default function Home({ go }: { go: (tab: Tab) => void }) {
         <h1 className="text-2xl font-extrabold tracking-tight flex items-center gap-1.5">
           <Flame />
           <span>
-            Forge<span className="text-ember">log</span>
+            Hammer<span className="text-ember">log</span>
           </span>
         </h1>
         <span className="text-[13px] text-ink-dim font-medium pb-0.5">{dateLabel}</span>

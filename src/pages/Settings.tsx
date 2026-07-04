@@ -72,7 +72,7 @@ export default function SettingsPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `forgelog-export-${dateKey()}.json`
+    a.download = `hammerlog-export-${dateKey()}.json`
     document.body.appendChild(a)
     a.click()
     a.remove()
@@ -267,7 +267,7 @@ export default function SettingsPage() {
         <div className="border-t border-line/60">
           <Row>
             <span className="text-[15px] text-ink-dim">Version</span>
-            <span className="text-[15px] text-ink-faint tnum">Forgelog 1.0.0</span>
+            <span className="text-[15px] text-ink-faint tnum">Hammerlog 1.0.0</span>
           </Row>
         </div>
       </Card>

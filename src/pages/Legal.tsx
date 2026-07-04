@@ -29,25 +29,25 @@ export function LegalPage({
         {kind === 'privacy' ? (
           <>
             <Section heading="Your data stays on your device">
-              Forgelog stores all of your data — workouts, nutrition logs, bodyweight
+              Hammerlog stores all of your data — workouts, nutrition logs, bodyweight
               history, and settings — locally on this device using your browser's storage.
               Nothing is uploaded anywhere.
             </Section>
             <Section heading="No servers, no accounts">
-              There are no servers behind Forgelog, no accounts to create, and no sign-in.
+              There are no servers behind Hammerlog, no accounts to create, and no sign-in.
               The app runs entirely on your device.
             </Section>
             <Section heading="No tracking">
-              Forgelog contains no analytics, no tracking, no advertising, and no cookies.
+              Hammerlog contains no analytics, no tracking, no advertising, and no cookies.
               We do not collect, transmit, or sell any information, because your data never
               leaves the device in the first place.
             </Section>
             <Section heading="Exporting your data">
               The Export feature creates a file that you control. It is saved wherever you
-              choose, and it is yours to keep, move, or delete. Forgelog never sees it.
+              choose, and it is yours to keep, move, or delete. Hammerlog never sees it.
             </Section>
             <Section heading="Deleting your data">
-              Clearing this site's data in your browser, or using Reset inside Forgelog,
+              Clearing this site's data in your browser, or using Reset inside Hammerlog,
               permanently erases everything on this device. Because there are no servers,
               there is no backup and no way to recover deleted data remotely. Export first if
               you want to keep a copy.
@@ -59,14 +59,14 @@ export function LegalPage({
         ) : (
           <>
             <Section heading="Personal use, as-is">
-              Forgelog is provided for your personal use, free of charge and "as is," without
+              Hammerlog is provided for your personal use, free of charge and "as is," without
               warranty of any kind. You use it at your own discretion and risk.
             </Section>
 
             <Card className="border-ember/40 p-4 mb-6">
               <h3 className="text-ink font-bold text-[15px] mb-1.5">Not medical advice</h3>
               <p className="text-[15px] text-ink-dim leading-relaxed">
-                Forgelog is not a medical device and provides no medical, health, or
+                Hammerlog is not a medical device and provides no medical, health, or
                 nutritional advice. Calorie and macro targets, along with estimated one-rep-max
                 (1RM) values, are informational estimates only and may be inaccurate for you.
                 Consult a qualified professional — such as a doctor or a registered dietitian —
@@ -80,7 +80,7 @@ export function LegalPage({
               resetting the app will permanently erase it with no way to recover it.
             </Section>
             <Section heading="Limitation of liability">
-              To the maximum extent permitted by law, Forgelog and its author are not liable for
+              To the maximum extent permitted by law, Hammerlog and its author are not liable for
               any loss, injury, or damages arising from your use of the app or reliance on its
               estimates.
             </Section>

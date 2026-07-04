@@ -301,8 +301,8 @@ export const useStore = create<ForgeState>()(
       importData: (data) => {
         if (typeof data !== 'object' || data === null) return 'Invalid file.'
         const d = data as Record<string, unknown>
-        if (d.app !== 'forgelog' || typeof d.data !== 'object' || d.data === null)
-          return 'Not a Forgelog export file.'
+        if ((d.app !== 'hammerlog' && d.app !== 'forgelog') || typeof d.data !== 'object' || d.data === null)
+          return 'Not a Hammerlog export file.'
         const payload = d.data as Record<string, unknown>
         const next: Record<string, unknown> = {}
         for (const key of PERSIST_KEYS) {
@@ -370,7 +370,7 @@ export function exportPayload(): string {
   const s = useStore.getState()
   const data = Object.fromEntries(PERSIST_KEYS.map((k) => [k, s[k]]))
   return JSON.stringify(
-    { app: 'forgelog', version: 1, exportedAt: new Date().toISOString(), data },
+    { app: 'hammerlog', version: 1, exportedAt: new Date().toISOString(), data },
     null,
     2,
   )
